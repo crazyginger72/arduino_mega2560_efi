@@ -22,57 +22,59 @@
 
 #include <EEPROM.h>
 
-int sw_hw_reset_pin = 6;
-volatile float time = 0;
-volatile float time_last = 0;
-volatile int rpm_array[5] = {0,0,0,0,0};
-volatile int rpm = 0; 
-const int encoder_pin_A = 26;  
-const int encoder_pin_B = 28;  
-unsigned int encoder_A;
-unsigned int encoder_B;
-//unsigned int encoder_A_prev;
-unsigned int encoder_B_prev;
+const char* ver = "1.0a";
+const char* model = "test";
+const char* extras = "";
+const int8_t sw_hw_reset_pin = 6;
+int8_t rpm_raw = 0;
+float time_last = 0;
+int8_t rpm_array[5] = {0,0,0,0,0};
+int8_t rpm = 0; 
+const int8_t encoder_pin_A = 26;  
+const int8_t encoder_pin_B = 28;  
+uint8_t encoder_A;
+uint8_t encoder_B;
+uint8_t encoder_B_prev;
 float val ;    
 float adj_val ;
-int settings_mode = 0;
-int last_settings_mode = 0;
-int settings_set = false;
-long inj_pw = 20001;
-int idle = 751;
+int8_t settings_mode = 0;
+int8_t last_settings_mode = 0;
+int8_t settings_set = false;
+uint16_t inj_pw = 20001;
+uint8_t idle = 751;
 float advance = 21;
-int rev_limit = 3801;
-int mode_set = false;
-const int settings_button_Pin = 35;    
-int settings_button_State;
-int last_settings_Button_State = LOW;
-long last_settings_check_Time = 0; 
-long check_Delay = 300;
-int tps_input_pin = A15;
-int tps_value = 0;
-float tps_correction_factor = 1; // adjust this after reading the tps sensor!!!
-const int efi_led = 0;  //efi logo on 7seg
-const int efi_led2 = 0; //efi logo on 7seg
-const int red_led = 33;
-const int green_led = 27;
-const int blue_led = 23;
-const int amber_led = 24;
-const int inj_pin = 34;
-const int eeprom_addr[5] = {1, 2, 3, 4, 5};
-long inj_pw_loaded;
-int idle_loaded;
-int rev_limit_loaded;
+uint8_t rev_limit = 3801;
+int8_t mode_set = false;
+const int8_t settings_button_Pin = 35;    
+int8_t settings_button_State;
+int8_t last_settings_Button_State = 0x0;
+int16_t last_settings_check_Time = 0; 
+const int16_t check_Delay = 300;
+const int8_t tps_input_pin = A15;
+int8_t tps_value = 0;
+const float tps_correction_factor = 1; // adjust this after reading the tps sensor!!!
+const int8_t efi_led = 0;  //efi logo on 7seg
+const int8_t efi_led2 = 0; //efi logo on 7seg
+const int8_t red_led = 33;
+const int8_t green_led = 27;
+const int8_t blue_led = 23;
+const int8_t amber_led = 24;
+const int8_t inj_pin = 34;
+const int8_t eeprom_addr[5] = {1, 2, 3, 4, 5};
+int16_t inj_pw_loaded;
+int8_t idle_loaded;
+int8_t rev_limit_loaded;
 float advance_loaded;
-int error = 0;
-int error_loaded;
-long last_inj_pw = inj_pw;
-int last_idle = idle;
-int last_rev_limit = rev_limit;
+int8_t error = 0;
+int8_t error_loaded;
+int16_t last_inj_pw = inj_pw;
+int8_t last_idle = idle;
+int8_t last_rev_limit = rev_limit;
 float last_advance = advance;
 boolean diag_mode = false;
-
-
-
+boolean encoder_turned = false;
+volatile uint8_t rev;
+uint8_t rpm_delay;
 
 
 
@@ -81,25 +83,45 @@ boolean diag_mode = false;
 int swhwReset(void)
 {
   tone(8,4000,500);
-  pinMode(sw_hw_reset_pin, OUTPUT);      // sets pin only if needed
-  digitalWrite(sw_hw_reset_pin, LOW);    // sets the LED off
+  pinMode(sw_hw_reset_pin, 0x1);
+  digitalWrite(sw_hw_reset_pin, 0x0);    // sets the LED off
 }
 
 // custom shiftout for different shiftregiser setups, length 1=8bit, 2=16bit
-int shiftregister_Out(int dataPin, int clockPin, long val, int length)
+int shiftregister_Out(int8_t dataPin, int8_t clockPin, int16_t val, int8_t length)
 {
-  for (int i = 0; i < 8*length; i++)  {
+  for (int8_t i = 0; i < 8*length; i++)  {
     digitalWrite(dataPin, !!(val & (1 << i)));
-    digitalWrite(clockPin, HIGH);
-    digitalWrite(clockPin, LOW);    
+    digitalWrite(clockPin, 0x1);
+    digitalWrite(clockPin, 0x0);    
   }
 }
 
+int isr_delay(uint16_t wait){
+  if (--wait != 0)
+    wait <<= 2;
+    wait -= 2;
+    __asm__ __volatile__ (
+    "1: sbiw %0,1" "\n\t" // 2 cycles
+    "brne 1b" : "=w" (wait) : "0" (wait) // 2 cycles
+  );
+}
+
 //hall effect trigger
-void rpm_interrupt()
+void rpm_interrupt()  // fix ISR to be c++ not arduino
 {
-   time = (micros() - time_last); 
-   time_last = micros();
+  cli();
+  rev++;
+  isr_delay(0); //set delay to the timing adv/rtd
+}
+
+//caculates rpm
+int rpms(void){
+  detachInterrupt(0);
+  rpm_raw = 60000/(millis() - time_last)*rev;
+  time_last = millis();
+  rev = 0;
+  attachInterrupt(0, rpm_interrupt, FALLING);
 }
 
 int updateEncoder(){
@@ -109,12 +131,14 @@ int updateEncoder(){
   && ((encoder_B == 0 && encoder_B_prev ==1) || (encoder_B == 1 && encoder_B_prev == 0))) {
       val += adj_val;
       encoder_B_prev = encoder_B;
+      encoder_turned = true;
       //Serial.println("up");
   }
   else if (((encoder_A == 1 && encoder_B_prev == 0) || (encoder_A == 0 && encoder_B_prev == 1))
   && ((encoder_B == 1 && encoder_B_prev == 0) || (encoder_B == 0 && encoder_B_prev == 1))) {
       val -= adj_val;
       encoder_B_prev = encoder_B;
+      encoder_turned = true;
       //Serial.println("down");
   }
 }
@@ -140,88 +164,95 @@ int read_eeprom(){
   if (error_loaded != error){
     error = error_loaded;
   }
-  Serial.println("EEPROM loaded...");
-  Serial.print("inj_pw= ");
-  Serial.println(inj_pw);
-  Serial.print("idle= ");
-  Serial.println(idle);
-  Serial.print("advance= ");
-  Serial.println(advance);
-  Serial.print("rev_limit= ");
-  Serial.println(rev_limit);
-  Serial.print("error= ");
-  Serial.println(error);
+  if (diag_mode ==1){
+    Serial.println("EEPROM loaded");
+    Serial.print("inj_pw= ");
+    Serial.println(inj_pw);
+    Serial.print("idle= ");
+    Serial.println(idle);
+    Serial.print("advance= ");
+    Serial.println(advance);
+    Serial.print("rev_limit= ");
+    Serial.println(rev_limit);
+    Serial.print("error= ");
+    Serial.println(error);
+  }
 }
 
-int write_eeprom(int eeprom_pw, int eeprom_idl, float eeprom_adv, int eeprom_rl){
+int write_eeprom(int8_t eeprom_pw, int8_t eeprom_idl, float eeprom_adv, int8_t eeprom_rl){
   EEPROM.write(1, eeprom_pw/100);
   EEPROM.write(2, eeprom_idl/10);
   EEPROM.write(3, eeprom_adv);
   EEPROM.write(4, eeprom_rl/100);
   if (diag_mode ==1){
-    Serial.println("EEPROM updated...");
+    Serial.println("EEPROM updated");
   }
 }
 
 int light_check(){
-  digitalWrite(red_led,LOW);
-  digitalWrite(green_led,LOW);
-  digitalWrite(blue_led,LOW);
-  digitalWrite(amber_led,LOW);
-  digitalWrite(inj_pin,HIGH);
+  digitalWrite(red_led,0x0);
+  digitalWrite(green_led,0x0);
+  digitalWrite(blue_led,0x0);
+  digitalWrite(amber_led,0x0);
+  digitalWrite(inj_pin,0x1);
   delay(50);
-  digitalWrite(inj_pin,LOW);
+  digitalWrite(inj_pin,0x0);
   tone(8,2000,200);
   delay(2000);
-  digitalWrite(red_led,HIGH);
-  digitalWrite(green_led,HIGH);
-  digitalWrite(blue_led,HIGH);
-  digitalWrite(amber_led,HIGH);
+  digitalWrite(red_led,0x1);
+  digitalWrite(green_led,0x1);
+  digitalWrite(blue_led,0x1);
+  digitalWrite(amber_led,0x1);
 }
 
 int main(void)
 {
   sw_reset: //a software reset point
+  sei();
   init();
-  pinMode(13, OUTPUT);
-  digitalWrite(13,LOW);
+  pinMode(13, 0x1);
+  digitalWrite(13,0x0);
   Serial.begin(115200);
   Serial.println("");
-  Serial.println("EFI v1.0a");
+  Serial.print("EFI Ver:");
+  Serial.print(ver);
+  Serial.print(", Model: ");
+  Serial.println(model);
   Serial.println("L.A.P. Technical");
   Serial.println("©2014 Ginger Pollard");
-  Serial.println("");
-  pinMode(red_led, OUTPUT);
-  pinMode(green_led, OUTPUT);
-  pinMode(blue_led, OUTPUT);
-  pinMode(amber_led, OUTPUT);
-  pinMode(encoder_pin_A, INPUT);
-  pinMode(encoder_pin_B, INPUT);
-  pinMode(settings_button_Pin, INPUT);
-  digitalWrite(red_led,HIGH);
-  digitalWrite(green_led,HIGH);
-  digitalWrite(blue_led,HIGH);
-  digitalWrite(amber_led,HIGH);
-  int diag_timer = millis();
-  int wait_time;
+  Serial.println(extras);
+  Serial.println("firmware loaded, booting up...");
+  pinMode(red_led, 0x1);
+  pinMode(green_led, 0x1);
+  pinMode(blue_led, 0x1);
+  pinMode(amber_led, 0x1);
+  pinMode(encoder_pin_A, 0x0);
+  pinMode(encoder_pin_B, 0x0);
+  pinMode(settings_button_Pin, 0x0);
+  digitalWrite(red_led,0x1);
+  digitalWrite(green_led,0x1);
+  digitalWrite(blue_led,0x1);
+  digitalWrite(amber_led,0x1);
+  int8_t diag_timer = millis();
+  int8_t wait_time;
   diag_wait:
-  if (digitalRead(settings_button_Pin) == HIGH){
-    if (millis() > diag_timer + 5000 && digitalRead(settings_button_Pin) == HIGH){
+  if (digitalRead(settings_button_Pin) == 0x1){
+    if (millis() > diag_timer + 5000 && digitalRead(settings_button_Pin) == 0x1){
       diag_mode = true;
-      digitalWrite(red_led, LOW);
+      digitalWrite(red_led, 0x0);
       delay(1000);
-      digitalWrite(red_led, HIGH);
-      digitalWrite(amber_led, LOW);
+      digitalWrite(red_led, 0x1);
+      digitalWrite(amber_led, 0x0);
       delay(1000);
-      digitalWrite(amber_led, HIGH);
-      digitalWrite(green_led, LOW);
+      digitalWrite(amber_led, 0x1);
+      digitalWrite(green_led, 0x0);
       delay(1000);
-      digitalWrite(green_led, HIGH);
-      digitalWrite(blue_led, LOW);
+      digitalWrite(green_led, 0x1);
+      digitalWrite(blue_led, 0x0);
       delay(1000);
-      digitalWrite(blue_led, HIGH);
+      digitalWrite(blue_led, 0x1);
       Serial.print("now entering diagnostis mode");
-      for (int i=0;i<=20;i++){
+      for (int8_t i=0;i<=20;i++){
         delay(100);
         if (i != 20){
           Serial.print(".");
@@ -232,16 +263,17 @@ int main(void)
       }
     }
     else {
-      //Serial.println("wait");
       goto diag_wait;
     }
   }
-  pinMode(inj_pin, OUTPUT);
-  unsigned long currentTime = millis();
-  unsigned long loopTime = currentTime;
+  pinMode(inj_pin, 0x1);
+  uint16_t currentTime_enc = millis();
+  uint16_t currentTime_rpm = millis();
+  uint16_t looptime_enc = currentTime_enc;
+  uint16_t looptime_rpm = currentTime_rpm;
   Serial3.begin(9600);
   attachInterrupt(0, rpm_interrupt, FALLING);
-  long last_millis = millis();//////////////
+  int16_t last_millis = millis();
   read_eeprom();
   last_inj_pw = inj_pw;
   last_idle = idle;
@@ -253,18 +285,18 @@ int main(void)
 for(;;){
   
   start:
-
+uint16_t st = millis();
   //annoying beep if engine isnt started in 3min!
   if (millis()>180000 && rpm < 100 && settings_mode == 0 && diag_mode == false){
     tone(8,4000,2000);
   }
 
   //the fucking math, FTW!!!
-  int displacment = 420;
-  int ve = 90;
+  int8_t displacment = 420;
+  int8_t ve = 90;
 
 
-
+  
 
 
 
@@ -279,33 +311,33 @@ for(;;){
 
 
   //button check to enter settings mode
-  if ((digitalRead(settings_button_Pin) == HIGH) 
+  if ((digitalRead(settings_button_Pin) == 0x1) 
     && (last_settings_Button_State != digitalRead(settings_button_Pin)) 
     && (millis() - last_settings_check_Time > check_Delay)){
     last_settings_check_Time = millis();
-    last_settings_Button_State = HIGH;
+    last_settings_Button_State = 0x1;
     last_settings_mode = settings_mode;
     settings_mode++;
     if(settings_mode > 4){
       settings_mode = 0;
-      digitalWrite(red_led,HIGH);
-      digitalWrite(green_led,HIGH);
-      digitalWrite(blue_led,HIGH);
-      digitalWrite(amber_led,HIGH);
+      digitalWrite(red_led,0x1);
+      digitalWrite(green_led,0x1);
+      digitalWrite(blue_led,0x1);
+      digitalWrite(amber_led,0x1);
     }
     settings_set = false;  
   }
-  else if (digitalRead(settings_button_Pin) == LOW){ 
-    last_settings_Button_State = LOW;
+  else if (digitalRead(settings_button_Pin) == 0x0){ 
+    last_settings_Button_State = 0x0;
   }
 
   //mode for setting params of EFI
   if((settings_mode != last_settings_mode) && (settings_set == false)){
     settings_set = false;
-    digitalWrite(red_led,HIGH);
-    digitalWrite(green_led,HIGH);
-    digitalWrite(blue_led,HIGH);
-    digitalWrite(amber_led,HIGH);
+    digitalWrite(red_led,0x1);
+    digitalWrite(green_led,0x1);
+    digitalWrite(blue_led,0x1);
+    digitalWrite(amber_led,0x1);
     switch(last_settings_mode){
       case 0:
         break;
@@ -330,29 +362,29 @@ for(;;){
         val = inj_pw;
         adj_val = 50;
         settings_set = true;
-        digitalWrite(green_led,LOW);
+        digitalWrite(green_led,0x0);
         break;
       case 2:
         val = idle;
         adj_val = 25;
         settings_set = true;
-        digitalWrite(blue_led,LOW);
+        digitalWrite(blue_led,0x0);
         break;
       case 3:
         val = advance;
         settings_set = true;
         adj_val = 0.5;
-        digitalWrite(amber_led,LOW);
+        digitalWrite(amber_led,0x0);
         break;
       case 4:
         val = rev_limit;
         adj_val = 50;
         settings_set = true;
-        digitalWrite(red_led,LOW);
+        digitalWrite(red_led,0x0);
         break;
       default:
         break;
-       // Serial.println("[ERROR] set_sel not within params!!!");
+        Serial.println("[ERROR] set_sel not within params!!!");
     }
   }
   else if (settings_mode == 0){
@@ -366,46 +398,53 @@ for(;;){
     val = 0;
     adj_val = 0;
     settings_set = true;
-    digitalWrite(red_led,HIGH);
-    digitalWrite(green_led,HIGH);
-    digitalWrite(blue_led,HIGH);
-    digitalWrite(amber_led,HIGH);
+    digitalWrite(red_led,0x1);
+    digitalWrite(green_led,0x1);
+    digitalWrite(blue_led,0x1);
+    digitalWrite(amber_led,0x1);
     }
   }
-  
-  //check delay 
-  currentTime = millis();
-  if(currentTime >= (loopTime + 10) && settings_mode !=0){
+  //check delay and mode
+  currentTime_enc = millis();
+  if(currentTime_enc >= (looptime_enc + 10) && settings_mode !=0){
     updateEncoder();
-    loopTime = currentTime;  // Updates loopTime
-
-if (millis() > last_millis + 2000 && diag_mode == true){
-Serial.print(settings_mode);
-Serial.print("<settings_mode, ");
-Serial.print(val);
-Serial.print("<val, ");
-Serial.print(adj_val*2);
-Serial.println("<adj_val");
-Serial.println("");
-last_millis = millis();
-}
-
-
-}
-
-
-    //5 Sample Moving Average
+    looptime_enc = currentTime_enc;  // Updates looptime_enc
+    if (millis() > last_millis + 100 && diag_mode == true && encoder_turned == true){
+      Serial.print(settings_mode);
+      Serial.print("<settings_mode, ");
+      Serial.print(val);
+      Serial.print("<val, ");
+      Serial.print(adj_val*2);
+      Serial.println("<adj_val");
+      Serial.println("");
+      last_millis = millis();
+      encoder_turned = false;
+    }
+  }
+  if(rpm > 2500){
+    rpm_delay = 20;
+  }
+  else{
+    rpm_delay = 200;
+  }
+  currentTime_rpm = millis();
+  if(currentTime_rpm >= (looptime_rpm + rpm_delay)){
+    rpms();
+    looptime_rpm = currentTime_rpm;
+    if(diag_mode == true){
+      Serial.print("  rpm: ");
+      Serial.println(rpm);
+    }
+    //5 Sample Average
     rpm_array[0] = rpm_array[1];
     rpm_array[1] = rpm_array[2];
     rpm_array[2] = rpm_array[3];
     rpm_array[3] = rpm_array[4];
-    rpm_array[4] = 60*(1000000/(time*4));    
+    rpm_array[4] = rpm_raw;
     rpm = (rpm_array[0] + rpm_array[1] + rpm_array[2] + rpm_array[3] + rpm_array[4]) / 5;
- 
+  }
 
   if (serialEventRun) serialEventRun();
-  goto start;
- 
-  }
-}
 
+   }
+}

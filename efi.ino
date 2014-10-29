@@ -66,15 +66,16 @@ boolean encoder_turned = 0x0;
 volatile uint8_t rev;
 boolean over_rev = 0x0;
 
-//sensors
-#define TPS 1
-#define OIL 2
+//sensors========================================================
+#define TPS 0
+#define OIL 1
 uint8_t sensors[2][4] = {
 //===pin=====val======cor=====c_pin=====
     {A15,     0,       0,      A15}, //TPS 1
     {A14,     0,       0,      A14}, //OIL 2
 };
 int sensors_array_size = sizeof(sensors)/sizeof(sensors[0]);
+//========================================================sensors
 
 // auto zero for sensors
 int zero_sensor(uint8_t pin){

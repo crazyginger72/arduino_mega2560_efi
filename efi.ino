@@ -2,11 +2,11 @@
 
 ====================================================================================
 ====================================================================================
-                     ______ ______ ____         ___  ____       
-                    / ____// ____//  _/  _   __/  / / __ \  ____ 
-                   / __/  / /_    / /   | | / // / / / / / / __ \
-                  / /___ / __/  _/ /    | |/ // / / /_/ / / /_/ / 
-                 /_____//_/    /___/    |___//_/(_)____/  \__,__| 
+                   ____   ______ __  ___          ___  ____       
+                  / __ \ / ____//  |/  /   _   __/  / / __ \  ____ 
+                 / /_/ // /    / /|_/ /   | | / // / / / / / / __ \
+                / ____// /___ / /  / /    | |/ // / / /_/ / / /_/ / 
+               /_/     \____//_/  /_/     |___//_/(_)____/  \__,__| 
        __       ___       ____       ______          __          _            __
       / /      /   |     / __ \     /_  __/__  _____/ /_  ____  (_)________ _/ /
      / /      / /| |    / /_/ /      / / / _ \/ ___/ __ \/ __ \/ / ___/ __ `/ / 
@@ -17,6 +17,13 @@
                             under license GNU GPLv3
 ====================================================================================
 ====================================================================================
+
+*Full timint map with adjustments on the fly
+*Auto calibration of sensors
+*Builtin Diag/debug mode
+*Eeprom storage of all adjustments
+*
+*
 
 */
 
@@ -40,22 +47,22 @@ int8_t last_settings_mode = 0;
 int8_t settings_set = 0x0;
 uint16_t inj_pw = 20001;
 uint8_t idle = 751;
-float advance = 21;
+float advance = 0;
 uint8_t rev_limit = 3801;
 int8_t mode_set = 0x0;
 const int8_t settings_button_Pin = 35;    
 int8_t last_settings_Button_State = 0x0;
 int16_t last_settings_check_Time = 0; 
 const int16_t check_Delay = 300;
-const int8_t efi_led = 0;  //efi logo on 7seg
-const int8_t efi_led2 = 0; //efi logo on 7seg
+const int8_t efi_led = B00000000;  //efi logo on 7seg
+const int8_t efi_led2 = B00000000; //efi logo on 7seg
 const int8_t red_led = 33;
 const int8_t green_led = 27;
 const int8_t blue_led = 23;
 const int8_t amber_led = 24;
 const int8_t inj_pin = 34;
 const int8_t eeprom_addr[5] = {1, 2, 3, 4, 5};
-int16_t inj_pw_loaded;
+int16_t inj_pw_loaded, last_inj_time, inj_pulse;
 int8_t error = 0;
 int16_t last_inj_pw = inj_pw;
 int8_t last_idle = idle;
@@ -65,17 +72,36 @@ boolean diag_mode = 0x0;
 boolean encoder_turned = 0x0;
 volatile uint8_t rev;
 boolean over_rev = 0x0;
+boolean inj_pin_state = 0x0;
+uint16_t inj_pause = 22000;
 
 //sensors========================================================
 #define TPS 0
 #define OIL 1
 uint8_t sensors[2][4] = {
 //===pin=====val======cor=====c_pin=====
-    {A15,     0,       0,      A15}, //TPS 1
-    {A14,     0,       0,      A14}, //OIL 2
+    {A15,     0,       0,      A15}, //TPS 0
+    {A14,     0,       0,      A14}, //OIL 1
 };
 int sensors_array_size = sizeof(sensors)/sizeof(sensors[0]);
 //========================================================sensors
+
+//timing map=====================================================
+int8_t adv_curve [11][11] = {         //---tune later---
+//rpm===0.5k==1k==1.5k==2k==2.5k==3k==3.5k==4k==5k==6k=====load%
+  {15,   7,   8,   8,   9,   9,  10,  11,  13,  17,  20}, //100%
+  {15,   8,   8,   9,  10,  11,  12,  13,  15,  18,  21}, //90%
+  {15,   9,   9,  11,  12,  13,  14,  15,  16,  20,  22}, //80%
+  {15,  10,  11,  13,  15,  15,  16,  17,  18,  22,  24}, //70%
+  {15,  11,  13,  15,  17,  17,  18,  19,  20,  24,  26}, //60%
+  {15,  11,  15,  17,  19,  19,  20,  20,  22,  26,  29}, //50%
+  {15,  12,  16,  19,  21,  22,  23,  23,  25,  29,  31}, //40%
+  {15,  12,  18,  21,  24,  25,  25,  25,  28,  31,  33}, //30%
+  {15,  13,  19,  23,  26,  27,  28,  28,  31,  34,  35}, //20%
+  {15,  14,  20,  24,  28,  30,  30,  31,  33,  36,  36}, //10%
+  {15,  15,  21,  26,  30,  32,  33,  34,  35,  36,  37}, //0%
+};
+//=====================================================timing map
 
 // auto zero for sensors
 int zero_sensor(uint8_t pin){
@@ -103,11 +129,12 @@ int sensor_calibrate(){
 int swhwReset(void)
 {
   tone(8,4000,500);
+  delay(500);
   pinMode(sw_hw_reset_pin, 0x1);
   digitalWrite(sw_hw_reset_pin, 0x0);    // sets the LED off
 }
 
-// custom shiftout for different shiftregiser setups, length 1=8bit, 2=16bit
+// custom shiftout for different shiftregiser setups, length 1=8bit, 2=16bit, 3=24bit
 int shiftregister_Out(int8_t dataPin, int8_t clockPin, int16_t val, int8_t length)
 {
   for (int8_t i = 0; i < 8*length; i++)  {
@@ -310,6 +337,7 @@ int main(void)
 for(;;){
   
   start:
+
   if(rpm >= rev_limit){
     over_rev = 0x1;
   }
@@ -437,7 +465,7 @@ for(;;){
   currentTime_enc = millis();
   if(currentTime_enc >= (looptime_enc + 10) && settings_mode !=0){
     updateEncoder();
-    looptime_enc = currentTime_enc;  // Updates looptime_enc
+    looptime_enc = currentTime_enc; 
     if (millis() > last_millis + 100 && diag_mode == 0x1 && encoder_turned == 0x1){
       Serial.print(settings_mode);
       Serial.print("<settings_mode, ");
@@ -472,6 +500,12 @@ for(;;){
     rpm_array[4] = rpm_raw;
     rpm = (rpm_array[0] + rpm_array[1] + rpm_array[2] + rpm_array[3] + rpm_array[4]) / 5;
   }
+
+  //fuel injector pulsing
+  if(over_rev == 0x0 && inj_pin_state == 0x0 && last_inj_time + inj_pulse >= micros()){
+    inj_pin_state = !inj_pin_state;
+    digitalWrite(inj_pin, inj_pin_state);
+  }else if(inj_pin_state == 0x1 && last_inj_time + inj_pause >= micros())
 
   if (serialEventRun) serialEventRun();
 

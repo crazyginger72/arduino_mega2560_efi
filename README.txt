@@ -15,16 +15,16 @@
 ================================================================================
 ================================================================================
 
-*Full timint map with adjustments on the fly
-*Auto calibration of sensors
-*Builtin Diag/debug mode
-*Eeprom storage of all adjustments
+* Full timing map with adjustments on the fly
+* Auto calibration of sensors
+* Builtin Diag/debug mode
+* EEPROM storage of all adjustments
 *
 *
 
 arduino_mega2560_efi
 ====================
 
-EFI file for an arduino mega2560
+Electronic Fuel Injection (EFI) firmware for the Arduino Mega2560.
 
 

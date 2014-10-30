@@ -39,9 +39,8 @@ int8_t rpm_array[5] = {0,0,0,0,0};
 int8_t rpm = 0; 
 const int8_t encoder_pin_A = 26;  
 const int8_t encoder_pin_B = 28;  
-uint8_t encoder_A, encoder_B, encoder_B_prev, settings_button_State, idle_loaded,
-        rev_limit_loaded, error_loaded, rpm_delay;
-float val, adj_val, advance_loaded;
+uint8_t encoder_A, encoder_B, encoder_B_prev, settings_button_State, error_loaded, rpm_delay;
+float val, adj_val;
 int8_t settings_mode = 0;
 int8_t last_settings_mode = 0;
 int8_t settings_set = 0x0;
@@ -78,6 +77,7 @@ uint16_t inj_pause = 22000;
 boolean ign_pin_state = 0x0;
 uint16_t dwell = 150;
 uint16_t timing = 0;
+boolean load_defaults = 0x0;
 
 //sensors========================================================
 #define TPS 0
@@ -136,7 +136,7 @@ int timing_us(uint8_t load, uint8_t rpms){
   if(load > 100){load = 100;}
   if(rpm > 6000){rpm = 6000;}
   uint8_t total_adv = adv_curve[load/10][rpms/500] + advance;
-  uint16_t us = total_adv * ()
+  uint16_t us = total_adv * (1);
 
 
 
@@ -217,21 +217,11 @@ int updateEncoder(){
 }
 
 int read_eeprom(){
-  inj_pw_loaded = EEPROM.read(1);
-  if (inj_pw_loaded*100 != inj_pw){
-    inj_pw = inj_pw_loaded*100;
-  }
-  idle_loaded = EEPROM.read(2);
-  if (idle_loaded*100 != idle){
-    idle = idle_loaded*10;
-  }
-  advance_loaded = EEPROM.read(3);
-  if (advance_loaded != advance){
-    advance = advance_loaded;
-  }
-  rev_limit_loaded = EEPROM.read(4);
-  if (rev_limit_loaded*100 != rev_limit){
-    rev_limit = rev_limit_loaded*100;
+  if (load_defaults == 0x0){
+    inj_pw = EEPROM.read(1)*100;
+    idle = EEPROM.read(2)*10;
+    advance = EEPROM.read(3);
+    rev_limit = EEPROM.read(4)*100;
   }
   error_loaded = EEPROM.read(5);
   if (error_loaded != error){

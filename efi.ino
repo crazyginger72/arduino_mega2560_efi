@@ -45,22 +45,23 @@ float val, adj_val, advance_loaded;
 int8_t settings_mode = 0;
 int8_t last_settings_mode = 0;
 int8_t settings_set = 0x0;
-uint16_t inj_pw = 20001;
+uint16_t inj_pw = 20000;
 uint8_t idle = 751;
 float advance = 0;
 uint8_t rev_limit = 3801;
-int8_t mode_set = 0x0;
+uint8_t mode_set = 0x0;
 const int8_t settings_button_Pin = 35;    
-int8_t last_settings_Button_State = 0x0;
+uint8_t last_settings_Button_State = 0x0;
 int16_t last_settings_check_Time = 0; 
-const int16_t check_Delay = 300;
-const int8_t efi_led = B00000000;  //efi logo on 7seg
-const int8_t efi_led2 = B00000000; //efi logo on 7seg
-const int8_t red_led = 33;
-const int8_t green_led = 27;
-const int8_t blue_led = 23;
-const int8_t amber_led = 24;
-const int8_t inj_pin = 34;
+const uint16_t check_Delay = 300;
+const uint8_t efi_led = B00000000;  //efi logo on 7seg
+const uint8_t efi_led2 = B00000000; //efi logo on 7seg
+const uint8_t red_led = 33;
+const uint8_t green_led = 27;
+const uint8_t blue_led = 23;
+const uint8_t amber_led = 24;
+const uint8_t inj_pin = 34;
+const uint8_t ign_pin = 36;
 const int8_t eeprom_addr[5] = {1, 2, 3, 4, 5};
 int16_t inj_pw_loaded, last_inj_time, inj_pulse;
 int8_t error = 0;
@@ -74,14 +75,19 @@ volatile uint8_t rev;
 boolean over_rev = 0x0;
 boolean inj_pin_state = 0x0;
 uint16_t inj_pause = 22000;
+boolean ign_pin_state = 0x0;
+uint16_t dwell = 150;
+uint16_t timing = 0;
 
 //sensors========================================================
 #define TPS 0
 #define OIL 1
-uint8_t sensors[2][4] = {
-//===pin=====val======cor=====c_pin=====
-    {A15,     0,       0,      A15}, //TPS 0
-    {A14,     0,       0,      A14}, //OIL 1
+#define FUEL 2
+uint8_t sensors[3][4] = { // change 3 as needed please
+//===pin=====val======cor=====c_pin==============================
+    {A15,     0,       0,      A15}, //TPS 0 
+    {A14,     0,       0,      A14}, //OIL 1 (press)
+    {A13,     0,       0,      A14}, //FUEL 2 (press)
 };
 int sensors_array_size = sizeof(sensors)/sizeof(sensors[0]);
 //========================================================sensors
@@ -125,6 +131,19 @@ int sensor_calibrate(){
   }
 }
 
+//caculate timing deg to Us
+int timing_us(uint8_t load, uint8_t rpms){
+  if(load > 100){load = 100;}
+  if(rpm > 6000){rpm = 6000;}
+  uint8_t total_adv = adv_curve[load/10][rpms/500] + advance;
+  uint16_t us = total_adv * ()
+
+
+
+
+  return us;
+}
+
 //loop for sw to hw reset
 int swhwReset(void)
 {
@@ -159,7 +178,14 @@ void rpm_interrupt()  // fix ISR to be c++ not arduino
 {
   cli();
   rev++;
-  isr_delay(0); //set delay to the timing adv/rtd
+  if(over_rev == 0x0){
+    isr_delay(timing); //set delay to the timing adv/rtd
+    ign_pin_state = !ign_pin_state;
+    digitalWrite(ign_pin, ign_pin_state);
+    isr_delay(dwell);
+    ign_pin_state = !ign_pin_state;
+    digitalWrite(ign_pin, ign_pin_state);
+  }
 }
 
 //caculates rpm
@@ -181,14 +207,12 @@ int updateEncoder(){
       val += adj_val;
       encoder_B_prev = encoder_B;
       encoder_turned = 0x1;
-      //Serial.println("up");
   }
   else if (((encoder_A == 1 && encoder_B_prev == 0) || (encoder_A == 0 && encoder_B_prev == 1))
   && ((encoder_B == 1 && encoder_B_prev == 0) || (encoder_B == 0 && encoder_B_prev == 1))) {
       val -= adj_val;
       encoder_B_prev = encoder_B;
       encoder_turned = 0x1;
-      //Serial.println("down");
   }
 }
 
@@ -257,10 +281,13 @@ int light_check(){
 int main(void)
 {
   sw_reset: //a software reset point
+  ign_pin_state = 0x0;
   sei();
   init();
   pinMode(13, 0x1);
   digitalWrite(13,0x0);
+  pinMode(ign_pin, 0x1);
+  digitalWrite(ign_pin, ign_pin_state);
   Serial.begin(115200);
   Serial.println("");
   Serial.print("EFI Ver:");

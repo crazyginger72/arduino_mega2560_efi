@@ -18,7 +18,7 @@
 ====================================================================================
 ====================================================================================
 
-*Full timint map with adjustments on the fly
+*Full timing map with adjustments on the fly
 *Auto calibration of sensors
 *Builtin Diag/debug mode
 *Eeprom storage of all adjustments
@@ -109,6 +109,23 @@ int8_t adv_curve [11][11] = {         //---tune later---
 };
 //=====================================================timing map
 
+//fuel map======================================================
+int8_t fuel_curve [11][11] = {         //---tune later---
+//rpm===0.5k==1k==1.5k==2k==2.5k==3k==3.5k==4k==5k==6k=====load%
+  {15,   7,   8,   8,   9,   9,  10,  11,  13,  17,  20}, //100%
+  {15,   8,   8,   9,  10,  11,  12,  13,  15,  18,  21}, //90%
+  {15,   9,   9,  11,  12,  13,  14,  15,  16,  20,  22}, //80%
+  {15,  10,  11,  13,  15,  15,  16,  17,  18,  22,  24}, //70%
+  {15,  11,  13,  15,  17,  17,  18,  19,  20,  24,  26}, //60%
+  {15,  11,  15,  17,  19,  19,  20,  20,  22,  26,  29}, //50%
+  {15,  12,  16,  19,  21,  22,  23,  23,  25,  29,  31}, //40%
+  {15,  12,  18,  21,  24,  25,  25,  25,  28,  31,  33}, //30%
+  {15,  13,  19,  23,  26,  27,  28,  28,  31,  34,  35}, //20%
+  {15,  14,  20,  24,  28,  30,  30,  31,  33,  36,  36}, //10%
+  {15,  15,  21,  26,  30,  32,  33,  34,  35,  36,  37}, //0%
+};
+//======================================================feul map
+
 // auto zero for sensors
 int zero_sensor(uint8_t pin){
   uint8_t val = analogRead(pin);
@@ -136,7 +153,7 @@ int timing_us(uint8_t load, uint8_t rpms){
   if(load > 100){load = 100;}
   if(rpm > 6000){rpm = 6000;}
   uint8_t total_adv = adv_curve[load/10][rpms/500] + advance;
-  uint16_t us = total_adv * (1);
+  uint16_t us = total_adv * (1); // need math to make degs into us
 
 
 
@@ -150,7 +167,7 @@ int swhwReset(void)
   tone(8,4000,500);
   delay(500);
   pinMode(sw_hw_reset_pin, 0x1);
-  digitalWrite(sw_hw_reset_pin, 0x0);    // sets the LED off
+  digitalWrite(sw_hw_reset_pin, 0x0);
 }
 
 // custom shiftout for different shiftregiser setups, length 1=8bit, 2=16bit, 3=24bit
@@ -227,7 +244,7 @@ int read_eeprom(){
   if (error_loaded != error){
     error = error_loaded;
   }
-  if (diag_mode ==1){
+  if (diag_mode ==1 && load_defaults == 0x0){
     Serial.println("EEPROM loaded");
     Serial.print("inj_pw= ");
     Serial.println(inj_pw);
@@ -239,6 +256,8 @@ int read_eeprom(){
     Serial.println(rev_limit);
     Serial.print("error= ");
     Serial.println(error);
+  }else if (load_defaults == 0x1){
+    Serial.println("EEPROM not loaded, using defaults!!!");
   }
 }
 
@@ -288,8 +307,9 @@ int main(void)
   Serial.println("©2014 Ginger Pollard");
   if (extras != ""){
     Serial.println(extras);
-    Serial.println("firmware loaded, booting up...");
   }
+  Serial.println("firmware loaded, booting up...");
+  
   pinMode(red_led, 0x1);
   pinMode(green_led, 0x1);
   pinMode(blue_led, 0x1);

@@ -15,10 +15,10 @@
 ================================================================================
 ================================================================================
 
-*Full timint map with adjustments on the fly
-*Auto calibration of sensors
-*Builtin Diag/debug mode
-*Eeprom storage of all adjustments
+* Full timing map with adjustments on the fly
+* Auto calibration of sensors
+* Builtin Diag/debug mode
+* Eeprom storage of all adjustments
 *
 *
 

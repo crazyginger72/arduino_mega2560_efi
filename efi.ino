@@ -218,25 +218,20 @@ int updateEncoder(){
 
 int read_eeprom(){
   inj_pw_loaded = EEPROM.read(1);
-  if (inj_pw_loaded*100 != inj_pw){
-    inj_pw = inj_pw_loaded*100;
-  }
+  inj_pw = inj_pw_loaded*100;
+	
   idle_loaded = EEPROM.read(2);
-  if (idle_loaded*100 != idle){
-    idle = idle_loaded*10;
-  }
+  idle = idle_loaded*10;
+  
   advance_loaded = EEPROM.read(3);
-  if (advance_loaded != advance){
-    advance = advance_loaded;
-  }
+  advance = advance_loaded;
+	
   rev_limit_loaded = EEPROM.read(4);
-  if (rev_limit_loaded*100 != rev_limit){
-    rev_limit = rev_limit_loaded*100;
-  }
+  rev_limit = rev_limit_loaded*100;
+	
   error_loaded = EEPROM.read(5);
-  if (error_loaded != error){
-    error = error_loaded;
-  }
+  error = error_loaded;
+
   if (diag_mode ==1){
     Serial.println("EEPROM loaded");
     Serial.print("inj_pw= ");

@@ -262,10 +262,13 @@ int main(void)
   pinMode(13, 0x1);
   digitalWrite(13,0x0);
   Serial.begin(115200);
-  // Create a nice string for the Serial connection, pretty please
   Serial.println("");
-  char prettySerialOutput[1024];
-  strcat(prettySerialOutput, "EFI Ver: "); strcat(prettySerialOutput,ver); strcat(prettySerialOutput,", Model: "); strcat(prettySerialOutput,model); strcat(prettySerialOutput,"\nL.A.P. Technical\n©2014 Ginger Pollard");
+  Serial.print("EFI Ver:");
+  Serial.print(ver);
+  Serial.print(", Model: ");
+  Serial.println(model);
+  Serial.println("L.A.P. Technical");
+  Serial.println("©2014 Ginger Pollard");
   if (extras != ""){
     Serial.println(extras);
     Serial.println("firmware loaded, booting up...");

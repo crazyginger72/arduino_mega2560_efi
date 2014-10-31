@@ -78,6 +78,7 @@ boolean ign_pin_state = 0x0;
 uint16_t dwell = 150;
 uint16_t timing = 0;
 boolean load_defaults = 0x0;
+uint8_t load = 0;
 
 //sensors========================================================
 #define TPS 0
@@ -150,14 +151,12 @@ int sensor_calibrate(){
 
 //caculate timing deg to Us
 int timing_us(uint8_t load, uint8_t rpms){
+  cli();
   if(load > 100){load = 100;}
   if(rpm > 6000){rpm = 6000;}
   uint8_t total_adv = adv_curve[load/10][rpms/500] + advance;
-  uint16_t us = total_adv * (1); // need math to make degs into us
-
-
-
-
+  uint16_t us = total_adv*(1/(rpms *6));
+  sei();
   return us;
 }
 
@@ -196,6 +195,7 @@ void rpm_interrupt()  // fix ISR to be c++ not arduino
   cli();
   rev++;
   if(over_rev == 0x0){
+    timing = timing_us(load, rpm);
     isr_delay(timing); //set delay to the timing adv/rtd
     ign_pin_state = !ign_pin_state;
     digitalWrite(ign_pin, ign_pin_state);

@@ -154,8 +154,7 @@ int timing_us(uint8_t load, uint8_t rpms){
   cli();
   if(load > 100){load = 100;}
   if(rpm > 6000){rpm = 6000;}
-  uint8_t total_adv = adv_curve[load/10][rpms/500] + advance;
-  uint16_t us = total_adv*(1/(rpms *6));
+  uint16_t us = (adv_curve[load/10][rpms/500] + advance)*(1/(rpms *6));
   sei();
   return us;
 }
@@ -196,7 +195,7 @@ void rpm_interrupt()  // fix ISR to be c++ not arduino
   rev++;
   if(over_rev == 0x0){
     timing = timing_us(load, rpm);
-    isr_delay(timing); //set delay to the timing adv/rtd
+    isr_delay(timing); 
     ign_pin_state = !ign_pin_state;
     digitalWrite(ign_pin, ign_pin_state);
     isr_delay(dwell);

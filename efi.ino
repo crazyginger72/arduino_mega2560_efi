@@ -144,7 +144,8 @@ int8_t fuel_curve [11][11] = {         //---tune later---
 
 // auto zero for sensors
 int zero_sensor(uint8_t pin){
-  return = analogRead(pin);
+  uint8_t val = analogRead(pin);
+  return val;
 }
   
 int zero_sensor(uint8_t pin, uint8_t c_pin){

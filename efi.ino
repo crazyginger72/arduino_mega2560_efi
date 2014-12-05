@@ -1,4 +1,19 @@
 /*
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+/*
 
 ====================================================================================
 ====================================================================================
@@ -41,8 +56,8 @@ const int8_t encoder_pin_A = 26;
 const int8_t encoder_pin_B = 28;  
 uint8_t encoder_A, encoder_B, encoder_B_prev, settings_button_State, error_loaded, rpm_delay;
 float val, adj_val;
-int8_t settings_mode = 0;
-int8_t last_settings_mode = 0;
+byte settings_mode = 0;
+byte last_settings_mode = 0;
 int8_t settings_set = 0x0;
 uint16_t inj_pw = 5000;
 uint8_t idle = 751;
@@ -53,15 +68,15 @@ const int8_t settings_button_Pin = 35;
 uint8_t last_settings_Button_State = 0x0;
 int16_t last_settings_check_Time = 0; 
 const uint16_t check_Delay = 300;
-const uint8_t efi_led = B00000000;  //efi logo on 7seg
-const uint8_t efi_led2 = B00000000; //efi logo on 7seg
-const uint8_t red_led = 33;
-const uint8_t green_led = 27;
-const uint8_t blue_led = 23;
-const uint8_t amber_led = 24;
-const uint8_t inj_pin = 34;
-const uint8_t ign_pin = 36;
-const int8_t eeprom_addr[5] = {1, 2, 3, 4, 5};
+const int efi_led = B00000000;  //efi logo on 7seg
+const int efi_led2 = B00000000; //efi logo on 7seg
+const byte red_led = 33;
+const byte green_led = 27;
+const byte blue_led = 23;
+const byte amber_led = 24;
+const byte inj_pin = 34;
+const byte ign_pin = 36;
+const byte eeprom_addr[5] = {1, 2, 3, 4, 5};
 int16_t inj_pw_loaded, last_inj_time, inj_pulse;
 int8_t error = 0;
 int16_t last_inj_pw = inj_pw;
